@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQL Linter & Optimizer Playground</title>
+  <meta name="description"
+    content="Tarayıcıda tamamen yerel çalışan, gizlilik odaklı SQL linter ve optimizer. Rust/WebAssembly ile SQL parse, lint ve formatlama." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+    rel="stylesheet" />
+
+  <!-- Monaco Editor loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <!-- Animated background -->
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+  <!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+  <header class="header" role="banner">
+    <div class="header-brand">
+      <span class="brand-icon" aria-hidden="true">⚡</span>
+      <span class="brand-name">SQL <span class="brand-accent">Optimizer</span></span>
+      <span class="brand-tag">Playground</span>
+    </div>
+
+    <div class="header-controls">
+      <!-- Dialect selector -->
+      <div class="control-group">
+        <label for="dialect-select" class="control-label">Dialect</label>
+        <select id="dialect-select" class="select-control" aria-label="SQL dialect seçin">
+          <option value="generic"    selected>Generic (ANSI)</option>
+          <option value="postgresql">PostgreSQL</option>
+          <option value="mysql">MySQL</option>
+          <option value="mssql">SQL Server</option>
+          <option value="sqlite">SQLite</option>
+          <option value="bigquery">BigQuery</option>
+          <option value="ansi">ANSI SQL</option>
+        </select>
+      </div>
+
+      <!-- Sample queries -->
+      <div class="control-group">
+        <label for="sample-select" class="control-label">Örnek</label>
+        <select id="sample-select" class="select-control" aria-label="Örnek sorgu yükle">
+          <option value="">— Yükle —</option>
+          <option value="select_star">SELECT * (L001)</option>
+          <option value="delete_no_where">DELETE no WHERE (L002)</option>
+          <option value="or_clause">OR in WHERE (L003)</option>
+          <option value="like_wildcard">LIKE leading % (L005)</option>
+          <option value="select_distinct">SELECT DISTINCT (L006)</option>
+          <option value="drop_table">DROP TABLE (L007)</option>
+          <option value="not_in_sub">NOT IN subquery (L008)</option>
+          <option value="union_all">UNION instead of UNION ALL (L011)</option>
+          <option value="sargable">Non-SARGable WHERE (L012)</option>
+          <option value="distinct_group">DISTINCT with GROUP BY (L013)</option>
+          <option value="having_no_group">HAVING without GROUP (L014)</option>
+          <option value="self_compare">Self-Comparison (L015)</option>
+          <option value="missing_join_on">Missing JOIN ON (L016)</option>
+          <option value="orderby_ordinal">ORDER BY Ordinal (L017)</option>
+          <option value="implicit_join">Implicit JOIN (L018)</option>
+          <option value="subquery_no_alias">Subquery without Alias (L019)</option>
+          <option value="complex_join">Complex JOIN query</option>
+          <option value="clean_query">Clean query ✅</option>
+        </select>
+      </div>
+
+      <div class="header-badge" id="wasm-status" role="status" aria-live="polite">
+        <span class="status-dot loading" id="status-dot"></span>
+        <span id="status-text">Yükleniyor…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════ TOOLBAR ══════════════════════════ -->
+  <div class="toolbar" role="toolbar" aria-label="Sorgu araçları">
+    <button id="analyze-btn" class="btn btn-primary" disabled aria-describedby="analyze-help">
+      <span class="btn-icon">▶</span> Analiz Et
+      <span class="btn-shortcut">Ctrl+Enter</span>
+    </button>
+    <button id="clear-btn" class="btn btn-ghost">
+      <span class="btn-icon">✕</span> Temizle
+    </button>
+    <div id="analyze-help" class="visually-hidden">SQL sorgusunu parse et, lint kurallarını çalıştır ve formatla</div>
+
+    <div class="toolbar-divider"></div>
+
+    <div class="token-stats" id="token-stats" aria-live="polite">
+      <span class="token-item"><span class="token-label">Satır</span><span id="line-count" class="token-val">1</span></span>
+      <span class="token-item"><span class="token-label">Karakter</span><span id="char-count" class="token-val">0</span></span>
+    </div>
+
+    <div class="toolbar-right">
+      <div class="privacy-badge" title="Hiçbir veri sunucuya gönderilmez">
+        <span>🔒</span> 100% Yerel
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════ MAIN LAYOUT ════════════════════════ -->
+  <main class="main-layout" role="main">
+
+    <!-- LEFT PANE – Editor -->
+    <section class="pane pane-editor" aria-label="SQL Editörü">
+      <div class="pane-header">
+        <span class="pane-title">SQL Editörü</span>
+        <button id="toggle-schema-btn" class="btn btn-xs btn-ghost" style="margin-left: auto;" aria-expanded="false" aria-controls="schema-container">
+          📋 Şema DDL (İsteğe Bağlı)
+        </button>
+      </div>
+      <div id="editor-container" class="editor-container" role="textbox" aria-multiline="true"
+        aria-label="SQL sorgu editörü"></div>
+
+      <!-- Collapsible Schema Section -->
+      <div id="schema-container" class="schema-container">
+        <div class="schema-header">
+          <span class="schema-title">Veritabanı Şeması (DDL)</span>
+          <span class="schema-subtitle">CREATE TABLE / CREATE INDEX tanımları</span>
+        </div>
+        <textarea id="schema-input" class="schema-textarea" placeholder="CREATE TABLE users (&#10;  id INT PRIMARY KEY,&#10;  name VARCHAR(50)&#10;);"></textarea>
+      </div>
+    </section>
+
+    <!-- RESIZE HANDLE -->
+    <div class="resize-handle" id="resize-handle" role="separator" aria-orientation="vertical"
+      aria-label="Bölme yeniden boyutlandır" tabindex="0"></div>
+
+    <!-- RIGHT PANE – Results -->
+    <section class="pane pane-results" aria-label="Analiz sonuçları">
+      <div class="pane-header results-header">
+        <nav class="tab-bar" role="tablist" aria-label="Sonuç sekmeleri">
+          <button class="tab active" id="tab-lint" role="tab" aria-selected="true"
+            aria-controls="panel-lint" data-tab="lint">
+            🐛 Lint <span class="tab-badge" id="lint-badge" aria-label="sorun sayısı">0</span>
+          </button>
+          <button class="tab" id="tab-format" role="tab" aria-selected="false"
+            aria-controls="panel-format" data-tab="format">
+            ✨ Format
+          </button>
+          <button class="tab" id="tab-ast" role="tab" aria-selected="false"
+            aria-controls="panel-ast" data-tab="ast">
+            🌳 AST
+          </button>
+          <button class="tab" id="tab-stats" role="tab" aria-selected="false"
+            aria-controls="panel-stats" data-tab="stats">
+            📊 Stats
+          </button>
+        </nav>
+      </div>
+
+      <div class="panels-wrapper">
+        <!-- LINT PANEL -->
+        <div id="panel-lint" class="panel active" role="tabpanel" aria-labelledby="tab-lint">
+          <div id="lint-empty" class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <p>SQL girin ve <strong>Analiz Et</strong>'e tıklayın</p>
+          </div>
+          <div id="lint-results" class="lint-results" aria-live="polite"></div>
+        </div>
+
+        <!-- FORMAT PANEL -->
+        <div id="panel-format" class="panel" role="tabpanel" aria-labelledby="tab-format" hidden>
+          <div id="format-empty" class="empty-state">
+            <div class="empty-icon">✨</div>
+            <p>Formatlanmış SQL burada görünecek</p>
+          </div>
+          <div id="format-output" class="format-output" hidden>
+            <div class="format-toolbar">
+              <button id="copy-formatted" class="btn btn-xs btn-ghost">📋 Kopyala</button>
+            </div>
+            <pre id="format-code" class="code-block sql-highlight"></pre>
+          </div>
+        </div>
+
+        <!-- AST PANEL -->
+        <div id="panel-ast" class="panel" role="tabpanel" aria-labelledby="tab-ast" hidden>
+          <div id="ast-empty" class="empty-state">
+            <div class="empty-icon">🌳</div>
+            <p>Abstract Syntax Tree burada görünecek</p>
+          </div>
+          <div id="ast-output" class="ast-output" hidden>
+            <div class="format-toolbar">
+              <button id="expand-all-ast" class="btn btn-xs btn-ghost">▶ Tümünü Aç</button>
+              <button id="collapse-all-ast" class="btn btn-xs btn-ghost">▼ Tümünü Kapat</button>
+            </div>
+            <div id="ast-tree" class="ast-tree" role="tree"></div>
+          </div>
+        </div>
+
+        <!-- STATS PANEL -->
+        <div id="panel-stats" class="panel" role="tabpanel" aria-labelledby="tab-stats" hidden>
+          <div id="stats-empty" class="empty-state">
+            <div class="empty-icon">📊</div>
+            <p>Sorgu istatistikleri burada görünecek</p>
+          </div>
+          <div id="stats-output" class="stats-output" hidden>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <span class="stat-value" id="stat-statements">—</span>
+                <span class="stat-label">İfade</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="stat-tables">—</span>
+                <span class="stat-label">Tablo</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="stat-joins">—</span>
+                <span class="stat-label">JOIN</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="stat-subqueries">—</span>
+                <span class="stat-label">Alt Sorgu</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="stat-columns">—</span>
+                <span class="stat-label">Sütun</span>
+              </div>
+            </div>
+
+            <div class="stat-flags">
+              <div class="stat-flag">
+                <span class="flag-label">WHERE</span>
+                <span class="flag-val" id="flag-where">—</span>
+              </div>
+              <div class="stat-flag">
+                <span class="flag-label">GROUP BY</span>
+                <span class="flag-val" id="flag-groupby">—</span>
+              </div>
+              <div class="stat-flag">
+                <span class="flag-label">ORDER BY</span>
+                <span class="flag-val" id="flag-orderby">—</span>
+              </div>
+              <div class="stat-flag">
+                <span class="flag-label">LIMIT</span>
+                <span class="flag-val" id="flag-limit">—</span>
+              </div>
+            </div>
+
+            <div id="lint-summary-box" class="lint-summary"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parse error overlay -->
+      <div id="error-overlay" class="error-overlay" hidden role="alert">
+        <div class="error-content">
+          <span class="error-icon">⚠</span>
+          <pre id="error-message" class="error-message"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Main application script (module, imports wasm) -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
