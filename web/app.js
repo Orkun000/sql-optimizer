@@ -331,25 +331,6 @@ function setupApp() {
   const schemaContainer = document.getElementById('schema-container');
   const schemaInput     = document.getElementById('schema-input');
 
-  if (schemaInput) {
-    schemaInput.value = `CREATE TABLE users (
-  user_id INT PRIMARY KEY,
-  first_name VARCHAR(50),
-  last_name VARCHAR(50),
-  status VARCHAR(20),
-  created_at TIMESTAMP
-);
-
-CREATE TABLE orders (
-  order_id INT PRIMARY KEY,
-  user_id INT,
-  total_amount DECIMAL(10,2),
-  order_date DATE
-);
-
-CREATE INDEX idx_orders_user_id ON orders(user_id);`;
-  }
-
   if (toggleSchemaBtn && schemaContainer) {
     toggleSchemaBtn.addEventListener('click', () => {
       const isVisible = schemaContainer.classList.toggle('active');
