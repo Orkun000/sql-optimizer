@@ -1,4 +1,4 @@
-use super::*;
+use crate::infrastructure::parse_and_analyze;
 
 fn analyze(sql: &str) -> serde_json::Value {
     let json = parse_and_analyze(sql, "generic", "");
