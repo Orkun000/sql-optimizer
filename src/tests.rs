@@ -49,7 +49,7 @@ fn test_like_leading_wildcard_triggers_l005() {
 
 #[test]
 fn test_clean_query_no_severe_issues() {
-    let r = analyze("SELECT id, name FROM users WHERE id = 1");
+    let r = analyze("SELECT id, name FROM users WHERE id = 1 LIMIT 10");
     assert_eq!(r["success"], true);
     let severe = r["lint_issues"]
         .as_array()
@@ -198,4 +198,41 @@ fn test_schema_non_indexed_filter() {
     let r = analyze_with_schema("SELECT id FROM users WHERE name = 'john'", schema);
     assert_eq!(r["success"], true);
     assert!(has_rule(&r, "L022"), "L022 expected but not found");
+}
+
+#[test]
+fn test_column_null_triggers_l023() {
+    let r1 = analyze("SELECT id FROM users WHERE status = NULL");
+    assert_eq!(r1["success"], true);
+    assert!(has_rule(&r1, "L023"), "L023 expected but not found");
+
+    let r2 = analyze("SELECT id FROM users WHERE status != NULL");
+    assert_eq!(r2["success"], true);
+    assert!(has_rule(&r2, "L023"), "L023 expected but not found");
+}
+
+#[test]
+fn test_subquery_in_projection_triggers_l024() {
+    let r = analyze("SELECT id, (SELECT name FROM roles WHERE roles.id = users.role_id) FROM users");
+    assert_eq!(r["success"], true);
+    assert!(has_rule(&r, "L024"), "L024 expected but not found");
+}
+
+#[test]
+fn test_redundant_parentheses_triggers_l025() {
+    let r = analyze("SELECT id FROM users WHERE ((id = 1))");
+    assert_eq!(r["success"], true);
+    assert!(has_rule(&r, "L025"), "L025 expected but not found");
+}
+
+#[test]
+fn test_missing_limit_triggers_l026() {
+    let r = analyze("SELECT id FROM users");
+    assert_eq!(r["success"], true);
+    assert!(has_rule(&r, "L026"), "L026 expected but not found");
+
+    // A query with limit should not trigger L026
+    let r_limit = analyze("SELECT id FROM users LIMIT 10");
+    assert_eq!(r_limit["success"], true);
+    assert!(!has_rule(&r_limit, "L026"), "L026 should not be triggered when LIMIT is present");
 }

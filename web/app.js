@@ -10,118 +10,15 @@
  */
 
 import init, { parse_and_analyze } from './pkg/sql_optimizer.js';
+import {
+  SAMPLES_TR,
+  SAMPLES_EN,
+  UI_TRANSLATIONS,
+  SAMPLE_LABELS,
+  LINT_TRANSLATIONS
+} from './i18n.js';
 
-// ─────────────────────────────────────────────────────────────
-// Sample queries
-// ─────────────────────────────────────────────────────────────
-
-const SAMPLES = {
-  select_star: `-- L001: SELECT * kullanımı
-SELECT *
-FROM users
-WHERE created_at > '2024-01-01';`,
-
-  delete_no_where: `-- L002: WHERE olmadan DELETE — TÜM satırlar silinir!
-DELETE FROM orders;`,
-
-  or_clause: `-- L003: OR in WHERE — index kullanımını kısıtlayabilir
-SELECT id, name, email
-FROM users
-WHERE status = 'active' OR role = 'admin';`,
-
-  like_wildcard: `-- L005: Baştaki % wildcard — tam tablo taraması
-SELECT id, username
-FROM users
-WHERE username LIKE '%john%';`,
-
-  select_distinct: `-- L006: SELECT DISTINCT — pahalı sıralama gerektirir
-SELECT DISTINCT country, city
-FROM customers
-ORDER BY country;`,
-
-  drop_table: `-- L007: DROP TABLE — geri alınamaz!
-DROP TABLE customer_archive;`,
-
-  not_in_sub: `-- L008: NOT IN subquery — NULL sorunları + performans
-SELECT id, name
-FROM products
-WHERE category_id NOT IN (
-  SELECT id FROM categories WHERE active = 1
-);`,
-
-  complex_join: `-- Çok tablolu JOIN sorgusu
-SELECT
-    o.id        AS order_id,
-    c.name      AS customer_name,
-    p.title     AS product,
-    oi.quantity,
-    oi.unit_price * oi.quantity AS total
-FROM orders o
-INNER JOIN customers c ON o.customer_id = c.id
-INNER JOIN order_items oi ON oi.order_id = o.id
-INNER JOIN products p ON oi.product_id = p.id
-WHERE o.status = 'completed'
-  AND o.created_at BETWEEN '2024-01-01' AND '2024-12-31'
-ORDER BY o.created_at DESC
-LIMIT 100;`,
-
-  clean_query: `-- Temiz sorgu: lint sorunu yok ✅
-SELECT
-    u.id,
-    u.name,
-    u.email,
-    COUNT(o.id) AS order_count
-FROM users u
-LEFT JOIN orders o ON o.user_id = u.id
-WHERE u.active = 1
-GROUP BY u.id, u.name, u.email
-ORDER BY order_count DESC
-LIMIT 50;`,
-
-  union_all: `-- L011: UNION yerine UNION ALL kullanımı
-SELECT id, email FROM users
-UNION
-SELECT id, email FROM customers;`,
-
-  sargable: `-- L012: Kolon üzerinde fonksiyon/matematik kullanımı (Non-SARGable)
-SELECT id, name FROM users 
-WHERE DATE(created_at) = '2026-01-01' 
-  AND price + 10 > 100;`,
-
-  distinct_group: `-- L013: GROUP BY ile birlikte gereksiz DISTINCT
-SELECT DISTINCT country, COUNT(*) 
-FROM users 
-GROUP BY country;`,
-
-  having_no_group: `-- L014: GROUP BY olmadan HAVING kullanımı
-SELECT country FROM users 
-HAVING COUNT(*) > 5;`,
-
-  self_compare: `-- L015: Kolonun kendisiyle karşılaştırılması (Self-Comparison)
-SELECT id, name FROM users 
-WHERE status = status;`,
-
-  missing_join_on: `-- L016: JOIN işleminde ilişki koşulunun unutulması (veya etkisiz olması)
-SELECT u.name, o.id 
-FROM users u 
-INNER JOIN orders o ON 1=1;`,
-
-  orderby_ordinal: `-- L017: ORDER BY'da kolon sıra numarası (ordinal) kullanımı
-SELECT name, email, created_at 
-FROM users 
-ORDER BY 1, 3 DESC;`,
-
-  implicit_join: `-- L018: Eski tip virgüllü (implicit) JOIN kullanımı
-SELECT u.name, o.id 
-FROM users u, orders o 
-WHERE u.id = o.user_id;`,
-
-  subquery_no_alias: `-- L019: Alt sorgunun (Subquery) alias almaması
-SELECT * 
-FROM (
-  SELECT id, name FROM users WHERE active = 1
-);`,
-};
+let SAMPLES = SAMPLES_TR;
 
 // ─────────────────────────────────────────────────────────────
 // Particle canvas background
@@ -189,6 +86,111 @@ let sqlAnalyze   = null;   // set after Wasm init
 let wasmReady    = false;
 let monacoReady  = false;
 let lastResult   = null;
+let currentLang  = 'tr';
+
+function t(key, replacements = {}) {
+  const translations = UI_TRANSLATIONS[currentLang];
+  let text = translations[key] || UI_TRANSLATIONS['tr'][key] || key;
+  for (const [k, v] of Object.entries(replacements)) {
+    text = text.replace(`{${k}}`, v);
+  }
+  return text;
+}
+
+function setLanguage(lang) {
+  currentLang = lang;
+  
+  // Set samples dict
+  SAMPLES = lang === 'en' ? SAMPLES_EN : SAMPLES_TR;
+
+  // Translate static UI elements
+  document.getElementById('dialect-label').textContent = t('dialect-label');
+  document.getElementById('sample-label').textContent = t('sample-label');
+  document.getElementById('sample-placeholder').textContent = t('sample-placeholder');
+  
+  // Update sample dropdown options labels
+  const sampleSel = document.getElementById('sample-select');
+  if (sampleSel) {
+    Array.from(sampleSel.options).forEach(opt => {
+      const val = opt.value;
+      if (val && SAMPLE_LABELS[lang] && SAMPLE_LABELS[lang][val]) {
+        opt.textContent = SAMPLE_LABELS[lang][val];
+      }
+    });
+  }
+
+  // Wasm status text
+  const statusTextEl = document.getElementById('status-text');
+  if (statusTextEl) {
+    if (wasmReady) {
+      statusTextEl.textContent = t('status-ready');
+    } else {
+      statusTextEl.textContent = t('status-loading');
+    }
+  }
+
+  // Toolbar buttons & badges
+  document.getElementById('analyze-btn-text').textContent = t('analyze-btn');
+  document.getElementById('clear-btn-text').textContent = t('clear-btn');
+  document.getElementById('line-count-label').textContent = t('line-count-label');
+  document.getElementById('char-count-label').textContent = t('char-count-label');
+  document.getElementById('local-badge-text').textContent = t('local-badge-text');
+
+  // Left pane
+  document.getElementById('pane-title-editor').textContent = currentLang === 'en' ? 'SQL Editor' : 'SQL Editörü';
+  document.getElementById('toggle-schema-btn-text').textContent = t('schema-btn');
+  document.getElementById('schema-title').textContent = t('schema-title');
+  document.getElementById('schema-subtitle').textContent = t('schema-subtitle');
+  
+  const schemaInput = document.getElementById('schema-input');
+  if (schemaInput) {
+    schemaInput.placeholder = t('schema-placeholder');
+  }
+
+  // Tabs
+  document.getElementById('tab-lint-text').textContent = t('tab-lint');
+  document.getElementById('tab-format-text').textContent = t('tab-format');
+  document.getElementById('tab-ast-text').textContent = t('tab-ast');
+  document.getElementById('tab-stats-text').textContent = t('tab-stats');
+
+  // Empty state placeholders
+  document.getElementById('lint-empty-text').innerHTML = t('lint-empty-text');
+  document.getElementById('format-empty-text').textContent = t('format-empty-text');
+  document.getElementById('ast-empty-text').textContent = t('ast-empty-text');
+  document.getElementById('stats-empty-text').textContent = t('stats-empty-text');
+
+  // Buttons in tabs
+  document.getElementById('copy-formatted').textContent = t('copy-btn');
+  document.getElementById('expand-all-ast').textContent = t('ast-expand-btn');
+  document.getElementById('collapse-all-ast').textContent = t('ast-collapse-btn');
+
+  // Stats labels
+  document.getElementById('label-stat-statements').textContent = t('stat-statements');
+  document.getElementById('label-stat-tables').textContent = t('stat-tables');
+  document.getElementById('label-stat-joins').textContent = t('stat-joins');
+  document.getElementById('label-stat-subqueries').textContent = t('stat-subqueries');
+  document.getElementById('label-stat-columns').textContent = t('stat-columns');
+  
+  document.getElementById('label-flag-where').textContent = t('flag-where');
+  document.getElementById('label-flag-groupby').textContent = t('flag-groupby');
+  document.getElementById('label-flag-orderby').textContent = t('flag-orderby');
+  document.getElementById('label-flag-limit').textContent = t('flag-limit');
+
+  // If editor exists and contains a default query comment from TR/EN, swap it to the selected lang version!
+  if (editor) {
+    const currentVal = editor.getValue();
+    for (const key of Object.keys(SAMPLES_TR)) {
+      if (currentVal === SAMPLES_TR[key] && lang === 'en') {
+        editor.setValue(SAMPLES_EN[key]);
+        break;
+      }
+      if (currentVal === SAMPLES_EN[key] && lang === 'tr') {
+        editor.setValue(SAMPLES_TR[key]);
+        break;
+      }
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Boot: Wasm + Monaco in parallel
@@ -206,9 +208,9 @@ async function initWasm() {
     await init();
     sqlAnalyze = parse_and_analyze;
     wasmReady  = true;
-    setStatus('ready', 'Hazır');
+    setStatus('ready', t('status-ready'));
   } catch (e) {
-    setStatus('error', 'Wasm hatası');
+    setStatus('error', t('status-error'));
     console.error('[Wasm] init failed:', e);
   }
 }
@@ -299,6 +301,31 @@ function setupApp() {
   const clearBtn   = document.getElementById('clear-btn');
   const sampleSel  = document.getElementById('sample-select');
 
+  // Setup language listener
+  const langSelect = document.getElementById('lang-select');
+  if (langSelect) {
+    const savedLang = localStorage.getItem('lang') || 'tr';
+    langSelect.value = savedLang;
+    setLanguage(savedLang);
+
+    langSelect.addEventListener('change', () => {
+      const selectedLang = langSelect.value;
+      localStorage.setItem('lang', selectedLang);
+      setLanguage(selectedLang);
+      
+      if (lastResult) {
+        renderLint(lastResult.lint_issues);
+        renderFormat(lastResult.formatted_sql);
+        renderAST(lastResult.ast_json);
+        renderStats(lastResult.stats, lastResult.lint_issues);
+      } else if (editor && editor.getValue().trim()) {
+        runAnalysis();
+      }
+    });
+  } else {
+    setLanguage('tr');
+  }
+
   analyzeBtn.disabled = false;
   analyzeBtn.addEventListener('click', runAnalysis);
   clearBtn.addEventListener('click', clearEditor);
@@ -369,14 +396,14 @@ function runAnalysis() {
   try {
     result = JSON.parse(sqlAnalyze(sql, dialect, schema));
   } catch (e) {
-    showErrorOverlay(true, 'İç hata: ' + e.message);
+    showErrorOverlay(true, (currentLang === 'en' ? 'Internal error: ' : 'İç hata: ') + e.message);
     return;
   }
 
   lastResult = result;
 
   if (!result.success) {
-    showErrorOverlay(true, result.error || 'Bilinmeyen hata');
+    showErrorOverlay(true, result.error || (currentLang === 'en' ? 'Unknown error' : 'Bilinmeyen hata'));
     return;
   }
 
@@ -412,8 +439,8 @@ function renderLint(issues) {
     empty.innerHTML = `
       <div class="no-issues">
         <div class="no-issues-icon">✅</div>
-        <p style="color:var(--success);font-weight:600">Mükemmel! Hiçbir lint sorunu bulunamadı.</p>
-        <p style="color:var(--text-muted);font-size:12px;margin-top:4px">SQL iyi yazılmış görünüyor.</p>
+        <p style="color:var(--success);font-weight:600">${t('no-issues-title')}</p>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:4px">${t('no-issues-subtitle')}</p>
       </div>`;
     container.innerHTML = '';
     return;
@@ -422,8 +449,28 @@ function renderLint(issues) {
   empty.hidden    = true;
   container.innerHTML = issues
     .map(issue => {
-      const sevLabel = { error: '🔴 Hata', warning: '🟡 Uyarı', info: '🔵 Bilgi' }[issue.severity] || issue.severity;
-      const catLabel = { performance: '⚡ Performans', safety: '🛡 Güvenlik', style: '🎨 Stil' }[issue.category] || issue.category;
+      let msg = issue.message;
+      let sug = issue.suggestion;
+      
+      if (currentLang === 'en') {
+        const trans = LINT_TRANSLATIONS[issue.rule_id];
+        if (trans && trans.en) {
+          msg = typeof trans.en.message === 'function' ? trans.en.message(issue.message) : trans.en.message;
+          sug = typeof trans.en.suggestion === 'function' ? trans.en.suggestion(issue.suggestion) : trans.en.suggestion;
+        }
+      }
+
+      const sevLabel = {
+        error: currentLang === 'en' ? '🔴 Error' : '🔴 Hata',
+        warning: currentLang === 'en' ? '🟡 Warning' : '🟡 Uyarı',
+        info: currentLang === 'en' ? '🔵 Info' : '🔵 Bilgi'
+      }[issue.severity] || issue.severity;
+
+      const catLabel = {
+        performance: currentLang === 'en' ? '⚡ Performance' : '⚡ Performans',
+        safety: currentLang === 'en' ? '🛡 Safety' : '🛡 Güvenlik',
+        style: currentLang === 'en' ? '🎨 Style' : '🎨 Stil'
+      }[issue.category] || issue.category;
 
       return `
       <div class="lint-card sev-${issue.severity}">
@@ -432,10 +479,10 @@ function renderLint(issues) {
           <span class="sev-badge ${issue.severity}">${sevLabel}</span>
           <span class="cat-badge">${catLabel}</span>
         </div>
-        <p class="lint-message">${escHtml(issue.message)}</p>
+        <p class="lint-message">${escHtml(msg)}</p>
         <div class="lint-suggestion">
           <span class="suggestion-icon">💡</span>
-          <span>${escHtml(issue.suggestion)}</span>
+          <span>${escHtml(sug)}</span>
         </div>
       </div>`;
     })
@@ -508,8 +555,8 @@ function copyFormatted() {
   const text = document.getElementById('format-code').innerText;
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copy-formatted');
-    btn.textContent = '✅ Kopyalandı';
-    setTimeout(() => { btn.textContent = '📋 Kopyala'; }, 2000);
+    btn.textContent = currentLang === 'en' ? '✅ Copied' : '✅ Kopyalandı';
+    setTimeout(() => { btn.textContent = currentLang === 'en' ? '📋 Copy' : '📋 Kopyala'; }, 2000);
   });
 }
 
@@ -599,12 +646,26 @@ function renderStats(stats, issues) {
   const warnings = issues.filter(i => i.severity === 'warning').length;
   const infos    = issues.filter(i => i.severity === 'info').length;
   const box      = document.getElementById('lint-summary-box');
-  box.innerHTML  = issues.length === 0
-    ? `<span style="color:var(--success)">✅ Hiçbir lint sorunu yok.</span>`
-    : `Toplam <strong>${issues.length}</strong> lint bulgusu:
-       ${errors   ? `<span style="color:var(--error)">  ${errors} hata</span>`   : ''}
-       ${warnings ? `<span style="color:var(--warning)"> ${warnings} uyarı</span>` : ''}
-       ${infos    ? `<span style="color:var(--info)">   ${infos} bilgi</span>`    : ''}`;
+  
+  let summaryText = '';
+  if (issues.length === 0) {
+    summaryText = currentLang === 'en'
+      ? `<span style="color:var(--success)">✅ No lint issues found.</span>`
+      : `<span style="color:var(--success)">✅ Hiçbir lint sorunu yok.</span>`;
+  } else {
+    if (currentLang === 'en') {
+      summaryText = `Total of <strong>${issues.length}</strong> lint findings:
+        ${errors   ? `<span style="color:var(--error)">  ${errors} error${errors > 1 ? 's' : ''}</span>`   : ''}
+        ${warnings ? `<span style="color:var(--warning)"> ${warnings} warning${warnings > 1 ? 's' : ''}</span>` : ''}
+        ${infos    ? `<span style="color:var(--info)">   ${infos} info${infos > 1 ? 's' : ''}</span>`    : ''}`;
+    } else {
+      summaryText = `Toplam <strong>${issues.length}</strong> lint bulgusu:
+        ${errors   ? `<span style="color:var(--error)">  ${errors} hata</span>`   : ''}
+        ${warnings ? `<span style="color:var(--warning)"> ${warnings} uyarı</span>` : ''}
+        ${infos    ? `<span style="color:var(--info)">   ${infos} bilgi</span>`    : ''}`;
+    }
+  }
+  box.innerHTML = summaryText;
 }
 
 function setFlag(id, value) {
@@ -614,10 +675,10 @@ function setFlag(id, value) {
     el.textContent  = '—';
   } else if (value) {
     el.className    = 'flag-val flag-yes';
-    el.textContent  = 'Var ✓';
+    el.textContent  = currentLang === 'en' ? 'Yes ✓' : 'Var ✓';
   } else {
     el.className    = 'flag-val flag-no';
-    el.textContent  = 'Yok ✗';
+    el.textContent  = currentLang === 'en' ? 'No ✗' : 'Yok ✗';
   }
 }
 
@@ -753,6 +814,6 @@ function escHtml(str) {
 // ─────────────────────────────────────────────────────────────
 
 boot().catch(err => {
-  setStatus('error', 'Başlatma hatası');
+  setStatus('error', t('status-boot-error'));
   console.error('[boot]', err);
 });

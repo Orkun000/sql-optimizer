@@ -34,7 +34,7 @@
     <div class="header-controls">
       <!-- Dialect selector -->
       <div class="control-group">
-        <label for="dialect-select" class="control-label">Dialect</label>
+        <label for="dialect-select" class="control-label" id="dialect-label">Dialect</label>
         <select id="dialect-select" class="select-control" aria-label="SQL dialect seçin">
           <option value="generic"    selected>Generic (ANSI)</option>
           <option value="postgresql">PostgreSQL</option>
@@ -48,9 +48,9 @@
 
       <!-- Sample queries -->
       <div class="control-group">
-        <label for="sample-select" class="control-label">Örnek</label>
+        <label for="sample-select" class="control-label" id="sample-label">Örnek</label>
         <select id="sample-select" class="select-control" aria-label="Örnek sorgu yükle">
-          <option value="">— Yükle —</option>
+          <option value="" id="sample-placeholder">— Yükle —</option>
           <option value="select_star">SELECT * (L001)</option>
           <option value="delete_no_where">DELETE no WHERE (L002)</option>
           <option value="or_clause">OR in WHERE (L003)</option>
@@ -72,6 +72,15 @@
         </select>
       </div>
 
+      <!-- Language selector -->
+      <div class="control-group">
+        <label for="lang-select" class="control-label" id="lang-label">Dil / Language</label>
+        <select id="lang-select" class="select-control" aria-label="Dil seçin / Select language">
+          <option value="tr" selected>TR 🇹🇷</option>
+          <option value="en">EN 🇬🇧</option>
+        </select>
+      </div>
+
       <div class="header-badge" id="wasm-status" role="status" aria-live="polite">
         <span class="status-dot loading" id="status-dot"></span>
         <span id="status-text">Yükleniyor…</span>
@@ -82,24 +91,24 @@
   <!-- ═══════════════════════════ TOOLBAR ══════════════════════════ -->
   <div class="toolbar" role="toolbar" aria-label="Sorgu araçları">
     <button id="analyze-btn" class="btn btn-primary" disabled aria-describedby="analyze-help">
-      <span class="btn-icon">▶</span> Analiz Et
+      <span class="btn-icon">▶</span> <span id="analyze-btn-text">Analiz Et</span>
       <span class="btn-shortcut">Ctrl+Enter</span>
     </button>
     <button id="clear-btn" class="btn btn-ghost">
-      <span class="btn-icon">✕</span> Temizle
+      <span class="btn-icon">✕</span> <span id="clear-btn-text">Temizle</span>
     </button>
     <div id="analyze-help" class="visually-hidden">SQL sorgusunu parse et, lint kurallarını çalıştır ve formatla</div>
 
     <div class="toolbar-divider"></div>
 
     <div class="token-stats" id="token-stats" aria-live="polite">
-      <span class="token-item"><span class="token-label">Satır</span><span id="line-count" class="token-val">1</span></span>
-      <span class="token-item"><span class="token-label">Karakter</span><span id="char-count" class="token-val">0</span></span>
+      <span class="token-item"><span class="token-label" id="line-count-label">Satır</span><span id="line-count" class="token-val">1</span></span>
+      <span class="token-item"><span class="token-label" id="char-count-label">Karakter</span><span id="char-count" class="token-val">0</span></span>
     </div>
 
     <div class="toolbar-right">
       <div class="privacy-badge" title="Hiçbir veri sunucuya gönderilmez">
-        <span>🔒</span> 100% Yerel
+        <span>🔒</span> <span id="local-badge-text">100% Yerel</span>
       </div>
     </div>
   </div>
@@ -110,9 +119,9 @@
     <!-- LEFT PANE – Editor -->
     <section class="pane pane-editor" aria-label="SQL Editörü">
       <div class="pane-header">
-        <span class="pane-title">SQL Editörü</span>
+        <span class="pane-title" id="pane-title-editor">SQL Editörü</span>
         <button id="toggle-schema-btn" class="btn btn-xs btn-ghost" style="margin-left: auto;" aria-expanded="false" aria-controls="schema-container">
-          📋 Şema DDL (İsteğe Bağlı)
+          <span id="toggle-schema-btn-text">📋 Şema DDL (İsteğe Bağlı)</span>
         </button>
       </div>
       <div id="editor-container" class="editor-container" role="textbox" aria-multiline="true"
@@ -121,8 +130,8 @@
       <!-- Collapsible Schema Section -->
       <div id="schema-container" class="schema-container">
         <div class="schema-header">
-          <span class="schema-title">Veritabanı Şeması (DDL)</span>
-          <span class="schema-subtitle">CREATE TABLE / CREATE INDEX tanımları</span>
+          <span class="schema-title" id="schema-title">Veritabanı Şeması (DDL)</span>
+          <span class="schema-subtitle" id="schema-subtitle">CREATE TABLE / CREATE INDEX tanımları</span>
         </div>
         <textarea id="schema-input" class="schema-textarea" placeholder="CREATE TABLE users (&#10;  id INT PRIMARY KEY,&#10;  name VARCHAR(50)&#10;);"></textarea>
       </div>
@@ -137,20 +146,20 @@
       <div class="pane-header results-header">
         <nav class="tab-bar" role="tablist" aria-label="Sonuç sekmeleri">
           <button class="tab active" id="tab-lint" role="tab" aria-selected="true"
-            aria-controls="panel-lint" data-tab="lint">
-            🐛 Lint <span class="tab-badge" id="lint-badge" aria-label="sorun sayısı">0</span>
+             aria-controls="panel-lint" data-tab="lint">
+            <span id="tab-lint-text">🐛 Lint</span> <span class="tab-badge" id="lint-badge" aria-label="sorun sayısı">0</span>
           </button>
           <button class="tab" id="tab-format" role="tab" aria-selected="false"
-            aria-controls="panel-format" data-tab="format">
-            ✨ Format
+             aria-controls="panel-format" data-tab="format">
+            <span id="tab-format-text">✨ Format</span>
           </button>
           <button class="tab" id="tab-ast" role="tab" aria-selected="false"
-            aria-controls="panel-ast" data-tab="ast">
-            🌳 AST
+             aria-controls="panel-ast" data-tab="ast">
+            <span id="tab-ast-text">🌳 AST</span>
           </button>
           <button class="tab" id="tab-stats" role="tab" aria-selected="false"
-            aria-controls="panel-stats" data-tab="stats">
-            📊 Stats
+             aria-controls="panel-stats" data-tab="stats">
+            <span id="tab-stats-text">📊 Stats</span>
           </button>
         </nav>
       </div>
@@ -160,7 +169,7 @@
         <div id="panel-lint" class="panel active" role="tabpanel" aria-labelledby="tab-lint">
           <div id="lint-empty" class="empty-state">
             <div class="empty-icon">🔍</div>
-            <p>SQL girin ve <strong>Analiz Et</strong>'e tıklayın</p>
+            <p id="lint-empty-text">SQL girin ve <strong>Analiz Et</strong>'e tıklayın</p>
           </div>
           <div id="lint-results" class="lint-results" aria-live="polite"></div>
         </div>
@@ -169,7 +178,7 @@
         <div id="panel-format" class="panel" role="tabpanel" aria-labelledby="tab-format" hidden>
           <div id="format-empty" class="empty-state">
             <div class="empty-icon">✨</div>
-            <p>Formatlanmış SQL burada görünecek</p>
+            <p id="format-empty-text">Formatlanmış SQL burada görünecek</p>
           </div>
           <div id="format-output" class="format-output" hidden>
             <div class="format-toolbar">
@@ -183,7 +192,7 @@
         <div id="panel-ast" class="panel" role="tabpanel" aria-labelledby="tab-ast" hidden>
           <div id="ast-empty" class="empty-state">
             <div class="empty-icon">🌳</div>
-            <p>Abstract Syntax Tree burada görünecek</p>
+            <p id="ast-empty-text">Abstract Syntax Tree burada görünecek</p>
           </div>
           <div id="ast-output" class="ast-output" hidden>
             <div class="format-toolbar">
@@ -198,47 +207,47 @@
         <div id="panel-stats" class="panel" role="tabpanel" aria-labelledby="tab-stats" hidden>
           <div id="stats-empty" class="empty-state">
             <div class="empty-icon">📊</div>
-            <p>Sorgu istatistikleri burada görünecek</p>
+            <p id="stats-empty-text">Sorgu istatistikleri burada görünecek</p>
           </div>
           <div id="stats-output" class="stats-output" hidden>
             <div class="stats-grid">
               <div class="stat-card">
                 <span class="stat-value" id="stat-statements">—</span>
-                <span class="stat-label">İfade</span>
+                <span class="stat-label" id="label-stat-statements">İfade</span>
               </div>
               <div class="stat-card">
                 <span class="stat-value" id="stat-tables">—</span>
-                <span class="stat-label">Tablo</span>
+                <span class="stat-label" id="label-stat-tables">Tablo</span>
               </div>
               <div class="stat-card">
                 <span class="stat-value" id="stat-joins">—</span>
-                <span class="stat-label">JOIN</span>
+                <span class="stat-label" id="label-stat-joins">JOIN</span>
               </div>
               <div class="stat-card">
                 <span class="stat-value" id="stat-subqueries">—</span>
-                <span class="stat-label">Alt Sorgu</span>
+                <span class="stat-label" id="label-stat-subqueries">Alt Sorgu</span>
               </div>
               <div class="stat-card">
                 <span class="stat-value" id="stat-columns">—</span>
-                <span class="stat-label">Sütun</span>
+                <span class="stat-label" id="label-stat-columns">Sütun</span>
               </div>
             </div>
 
             <div class="stat-flags">
               <div class="stat-flag">
-                <span class="flag-label">WHERE</span>
+                <span class="flag-label" id="label-flag-where">WHERE</span>
                 <span class="flag-val" id="flag-where">—</span>
               </div>
               <div class="stat-flag">
-                <span class="flag-label">GROUP BY</span>
+                <span class="flag-label" id="label-flag-groupby">GROUP BY</span>
                 <span class="flag-val" id="flag-groupby">—</span>
               </div>
               <div class="stat-flag">
-                <span class="flag-label">ORDER BY</span>
+                <span class="flag-label" id="label-flag-orderby">ORDER BY</span>
                 <span class="flag-val" id="flag-orderby">—</span>
               </div>
               <div class="stat-flag">
-                <span class="flag-label">LIMIT</span>
+                <span class="flag-label" id="label-flag-limit">LIMIT</span>
                 <span class="flag-val" id="flag-limit">—</span>
               </div>
             </div>

@@ -204,11 +204,13 @@ fn has_lowercase_keywords(sql: &str) -> bool {
         while let Some(pos) = sql_lower[search_from..].find(kw) {
             let abs = search_from + pos;
             let end = abs + kw.len();
-            // word-boundary guards
+            // word-boundary guards (treat underscore as word character)
             let before_ok = abs == 0
-                || !sql_lower.as_bytes()[abs - 1].is_ascii_alphanumeric();
+                || (!sql_lower.as_bytes()[abs - 1].is_ascii_alphanumeric()
+                    && sql_lower.as_bytes()[abs - 1] != b'_');
             let after_ok = end >= sql_lower.len()
-                || !sql_lower.as_bytes()[end].is_ascii_alphanumeric();
+                || (!sql_lower.as_bytes()[end].is_ascii_alphanumeric()
+                    && sql_lower.as_bytes()[end] != b'_');
 
             if before_ok && after_ok {
                 let orig = &sql[abs..end];
@@ -300,6 +302,21 @@ fn lint_query(query: &Query, stats: &mut QueryStats, schema: &Schema) -> Vec<Lin
         stats.has_limit = true;
     }
 
+    // L026: Missing LIMIT clause in SELECT query on tables
+    if query.limit.is_none() {
+        if let SetExpr::Select(select) = query.body.as_ref() {
+            if !select.from.is_empty() {
+                issues.push(make_issue(
+                    "L026",
+                    "warning",
+                    "performance",
+                    "Sorguda LIMIT belirtilmemis. Buyuk tablolar uzerinde calisirken bu sorgu yuksek bellek ve I/O tuketebilir.",
+                    "Sorgunun sonuna LIMIT 100 gibi bir sinir ekleyin veya sayfalama yapin.",
+                ));
+            }
+        }
+    }
+
     // L017: ORDER BY By Ordinal
     if let Some(order_by) = &query.order_by {
         let has_ordinal = order_by.exprs.iter().any(|obe| {
@@ -368,10 +385,10 @@ fn lint_select(select: &Select, stats: &mut QueryStats, schema: &Schema) -> Vec<
     for item in &select.projection {
         match item {
             SelectItem::UnnamedExpr(expr) => {
-                issues.extend(lint_expr(expr, stats, schema, &ctx));
+                issues.extend(lint_expr(expr, stats, schema, &ctx, true));
             }
             SelectItem::ExprWithAlias { expr, .. } => {
-                issues.extend(lint_expr(expr, stats, schema, &ctx));
+                issues.extend(lint_expr(expr, stats, schema, &ctx, true));
             }
             SelectItem::QualifiedWildcard(name, _) => {
                 if !schema.tables.is_empty() {
@@ -511,7 +528,7 @@ fn lint_select(select: &Select, stats: &mut QueryStats, schema: &Schema) -> Vec<
     // WHERE clause
     if let Some(where_clause) = &select.selection {
         stats.has_where = true;
-        issues.extend(lint_expr(where_clause, stats, schema, &ctx));
+        issues.extend(lint_expr(where_clause, stats, schema, &ctx, false));
     }
 
     // GROUP BY
@@ -525,7 +542,7 @@ fn lint_select(select: &Select, stats: &mut QueryStats, schema: &Schema) -> Vec<
 
     if let GroupByExpr::Expressions(exprs, _) = &select.group_by {
         for e in exprs {
-            issues.extend(lint_expr(e, stats, schema, &ctx));
+            issues.extend(lint_expr(e, stats, schema, &ctx, false));
         }
     }
 
@@ -553,7 +570,7 @@ fn lint_select(select: &Select, stats: &mut QueryStats, schema: &Schema) -> Vec<
 
     // HAVING
     if let Some(having) = &select.having {
-        issues.extend(lint_expr(having, stats, schema, &ctx));
+        issues.extend(lint_expr(having, stats, schema, &ctx, false));
     }
 
     issues
@@ -568,6 +585,7 @@ fn lint_expr(
     stats: &mut QueryStats,
     schema: &Schema,
     ctx: &QueryContext,
+    in_projection: bool,
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
 
@@ -577,11 +595,26 @@ fn lint_expr(
     }
 
     match expr {
-        // L003 & L012 & L015 & L021 & L022: Binary Operations
+        // L003 & L012 & L015 & L021 & L022 & L023: Binary Operations
         Expr::BinaryOp { op, left, right } => {
-            if !schema.tables.is_empty() && is_comparison_op(op) {
+            if !in_projection && !schema.tables.is_empty() && is_comparison_op(op) {
                 check_comparison(left, right, ctx, schema, &mut issues);
                 check_indexed_filter(expr, ctx, schema, &mut issues);
+            }
+
+            // L023: column = NULL or column != NULL comparison
+            if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
+                if matches!(left.as_ref(), Expr::Value(Value::Null))
+                    || matches!(right.as_ref(), Expr::Value(Value::Null))
+                {
+                    issues.push(make_issue(
+                        "L023",
+                        "warning",
+                        "safety",
+                        "column = NULL veya column != NULL kullanimi mantiksal hatalara yol acar. NULL deger karsilastirmalari her zaman UNKNOWN doner.",
+                        "Esitlik yerine IS NULL veya IS NOT NULL kullanin: column IS NULL / column IS NOT NULL.",
+                    ));
+                }
             }
 
             if *op == BinaryOperator::Or {
@@ -602,7 +635,7 @@ fn lint_expr(
                         "Esitligi kontrol edin ve dogru tablolari/kolonlari karsilastirdiginizdan emin olun.",
                     ));
                 }
-                if has_math_on_id(left) || has_math_on_id(right) {
+                if !in_projection && (has_math_on_id(left) || has_math_on_id(right)) {
                     issues.push(make_issue(
                         "L012",
                         "warning",
@@ -612,8 +645,8 @@ fn lint_expr(
                     ));
                 }
             }
-            issues.extend(lint_expr(left, stats, schema, ctx));
-            issues.extend(lint_expr(right, stats, schema, ctx));
+            issues.extend(lint_expr(left, stats, schema, ctx, in_projection));
+            issues.extend(lint_expr(right, stats, schema, ctx, in_projection));
         }
 
         // L005: LIKE with leading wildcard
@@ -661,22 +694,32 @@ fn lint_expr(
             stats.subquery_count += 1;
         }
 
-        // L010: Scalar subquery in WHERE
+        // L010 & L024: Scalar subquery
         Expr::Subquery(subquery) => {
-            issues.push(make_issue(
-                "L010",
-                "warning",
-                "performance",
-                "WHERE kosulunda scalar subquery: Her satir icin ayri calistirilabilir.",
-                "CTE (WITH clause) veya JOIN ile yeniden yazmayi degerlendirin.",
-            ));
+            if in_projection {
+                issues.push(make_issue(
+                    "L024",
+                    "warning",
+                    "performance",
+                    "SELECT listesinde scalar subquery kullanimi: Her satir icin ayri calistirilarak performans kaybina (N+1 sorgusu) neden olabilir.",
+                    "LEFT JOIN veya CTE (WITH) ile sorguyu optimize etmeyi degerlendirin.",
+                ));
+            } else {
+                issues.push(make_issue(
+                    "L010",
+                    "warning",
+                    "performance",
+                    "WHERE kosulunda scalar subquery: Her satir icin ayri calistirilabilir.",
+                    "CTE (WITH clause) veya JOIN ile yeniden yazmayi degerlendirin.",
+                ));
+            }
             issues.extend(lint_set_expr(&subquery.body, stats, schema));
             stats.subquery_count += 1;
         }
 
         // Recurse into unary ops
         Expr::UnaryOp { expr: inner, .. } => {
-            issues.extend(lint_expr(inner, stats, schema, ctx));
+            issues.extend(lint_expr(inner, stats, schema, ctx, in_projection));
         }
 
         // Recurse into CASE
@@ -687,16 +730,16 @@ fn lint_expr(
             else_result,
         } => {
             if let Some(op) = operand {
-                issues.extend(lint_expr(op, stats, schema, ctx));
+                issues.extend(lint_expr(op, stats, schema, ctx, in_projection));
             }
             for c in conditions {
-                issues.extend(lint_expr(c, stats, schema, ctx));
+                issues.extend(lint_expr(c, stats, schema, ctx, in_projection));
             }
             for r in results {
-                issues.extend(lint_expr(r, stats, schema, ctx));
+                issues.extend(lint_expr(r, stats, schema, ctx, in_projection));
             }
             if let Some(e) = else_result {
-                issues.extend(lint_expr(e, stats, schema, ctx));
+                issues.extend(lint_expr(e, stats, schema, ctx, in_projection));
             }
         }
 
@@ -713,10 +756,10 @@ fn lint_expr(
                     if has_identifier(e) {
                         args_have_id = true;
                     }
-                    issues.extend(lint_expr(e, stats, schema, ctx));
+                    issues.extend(lint_expr(e, stats, schema, ctx, in_projection));
                 }
             }
-            if args_have_id {
+            if !in_projection && args_have_id {
                 issues.push(make_issue(
                     "L012",
                     "warning",
@@ -725,6 +768,20 @@ fn lint_expr(
                     "Mumkunse fonksiyon kullanimini kaldirin veya kolon degerini yalin birakacak sekilde filtreleyin.",
                 ));
             }
+        }
+
+        // L025: Redundant nested double parentheses
+        Expr::Nested(inner) => {
+            if let Expr::Nested(_) = inner.as_ref() {
+                issues.push(make_issue(
+                    "L025",
+                    "info",
+                    "style",
+                    "Gereksiz ic ice cift parantez kullanimi. SQL okunabilirligini azaltir.",
+                    "Distaki veya icteki fazla parantezleri kaldirin: ((id = 1)) yerine (id = 1).",
+                ));
+            }
+            issues.extend(lint_expr(inner, stats, schema, ctx, in_projection));
         }
 
         _ => {}
