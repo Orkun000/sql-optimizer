@@ -87,6 +87,7 @@ let wasmReady    = false;
 let monacoReady  = false;
 let lastResult   = null;
 let currentLang  = 'tr';
+let astViewMode  = 'json';
 
 function t(key, replacements = {}) {
   const translations = UI_TRANSLATIONS[currentLang];
@@ -152,6 +153,12 @@ function setLanguage(lang) {
   document.getElementById('tab-format-text').textContent = t('tab-format');
   document.getElementById('tab-ast-text').textContent = t('tab-ast');
   document.getElementById('tab-stats-text').textContent = t('tab-stats');
+
+  // AST view togglers
+  const astJsonBtnText = document.getElementById('ast-json-btn-text');
+  if (astJsonBtnText) astJsonBtnText.textContent = t('ast-json-btn');
+  const astGraphBtnText = document.getElementById('ast-graph-btn-text');
+  if (astGraphBtnText) astGraphBtnText.textContent = t('ast-graph-btn');
 
   // Empty state placeholders
   document.getElementById('lint-empty-text').innerHTML = t('lint-empty-text');
@@ -352,6 +359,39 @@ function setupApp() {
     () => toggleAllAST(true));
   document.getElementById('collapse-all-ast').addEventListener('click',
     () => toggleAllAST(false));
+
+  // AST view toggling
+  const btnJsonView = document.getElementById('ast-view-json');
+  const btnGraphView = document.getElementById('ast-view-graph');
+  const treeContainer = document.getElementById('ast-tree');
+  const graphContainer = document.getElementById('ast-graph-container');
+  const expandBtn = document.getElementById('expand-all-ast');
+  const collapseBtn = document.getElementById('collapse-all-ast');
+
+  if (btnJsonView && btnGraphView) {
+    btnJsonView.addEventListener('click', () => {
+      btnJsonView.classList.add('active');
+      btnGraphView.classList.remove('active');
+      treeContainer.style.display = 'block';
+      graphContainer.style.display = 'none';
+      expandBtn.style.display = 'inline-block';
+      collapseBtn.style.display = 'inline-block';
+      astViewMode = 'json';
+    });
+
+    btnGraphView.addEventListener('click', () => {
+      btnGraphView.classList.add('active');
+      btnJsonView.classList.remove('active');
+      treeContainer.style.display = 'none';
+      graphContainer.style.display = 'block';
+      expandBtn.style.display = 'none';
+      collapseBtn.style.display = 'none';
+      astViewMode = 'graph';
+      if (lastResult) {
+        renderAST(lastResult.ast_json);
+      }
+    });
+  }
 
   // Collapsible Schema Section
   const toggleSchemaBtn = document.getElementById('toggle-schema-btn');
@@ -575,7 +615,312 @@ function renderAST(astJson) {
 
   empty.hidden  = true;
   output.hidden = false;
+  
+  // Render JSON tree
   tree.innerHTML = jsonTreeHTML(astJson, 0);
+
+  // Render Cytoscape graph if selected
+  if (astViewMode === 'graph') {
+    renderCytoscapeGraph(astJson);
+  }
+}
+
+function renderCytoscapeGraph(astJson) {
+  const container = document.getElementById('ast-graph');
+  if (!container || typeof cytoscape === 'undefined') return;
+
+  const elements = buildGraphData(astJson);
+
+  const cy = cytoscape({
+    container: container,
+    elements: elements,
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'background-color': '#1e1b4b', // Indigo-950
+          'label': 'data(label)',
+          'color': '#cbd5e1', // Slate-300
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'font-size': '10px',
+          'font-family': 'JetBrains Mono, Inter, monospace',
+          'width': '125px',
+          'height': '38px',
+          'shape': 'round-rectangle',
+          'border-width': 1.5,
+          'border-color': '#4f46e5', // Indigo-600
+          'text-wrap': 'wrap',
+          'text-max-width': '115px'
+        }
+      },
+      {
+        selector: 'node[type="keyword"]',
+        style: {
+          'background-color': '#064e3b', // Emerald-950
+          'border-color': '#10b981', // Emerald-500
+          'color': '#a7f3d0' // Emerald-200
+        }
+      },
+      {
+        selector: 'node[type="table"]',
+        style: {
+          'background-color': '#50072b', // Pink-950
+          'border-color': '#ec4899', // Pink-500
+          'color': '#fbcfe8', // Pink-200
+          'shape': 'ellipse',
+          'width': '110px',
+          'height': '38px'
+        }
+      },
+      {
+        selector: 'node[type="expression"]',
+        style: {
+          'background-color': '#78350f', // Amber-950
+          'border-color': '#f59e0b', // Amber-500
+          'color': '#fde68a' // Amber-200
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 1.5,
+          'line-color': 'rgba(255, 255, 255, 0.15)',
+          'target-arrow-color': 'rgba(255, 255, 255, 0.15)',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'arrow-scale': 0.8
+        }
+      }
+    ],
+    layout: {
+      name: 'breadthfirst',
+      directed: true,
+      padding: 15,
+      spacingFactor: 1.15
+    },
+    userZoomingEnabled: true,
+    userPanningEnabled: true,
+    boxSelectionEnabled: false
+  });
+
+  setTimeout(() => {
+    cy.fit();
+  }, 50);
+}
+
+function buildGraphData(ast) {
+  const nodes = [];
+  const edges = [];
+  let idCounter = 0;
+
+  function nextId() {
+    return 'n' + (idCounter++);
+  }
+
+  function traverse(obj, parentId = null, labelOverride = null) {
+    if (!obj || typeof obj !== 'object') return;
+
+    if (Array.isArray(obj)) {
+      obj.forEach((item, index) => {
+        traverse(item, parentId, labelOverride ? `${labelOverride}[${index}]` : null);
+      });
+      return;
+    }
+
+    // Direct statement handlers
+    if (obj.Query) {
+      traverse(obj.Query, parentId, 'Query');
+      return;
+    }
+    if (obj.Select) {
+      traverse(obj.Select, parentId, 'Select');
+      return;
+    }
+
+    if (obj.body) {
+      const node = addNode('QUERY_BODY', 'keyword');
+      addEdge(parentId, node.id);
+      traverse(obj.body, node.id);
+      if (obj.limit) traverse(obj.limit, parentId, 'LIMIT');
+      if (obj.order_by) traverse(obj.order_by, parentId, 'ORDER BY');
+      return;
+    }
+
+    if (obj.projection) {
+      const node = addNode('SELECT List', 'keyword');
+      addEdge(parentId, node.id);
+      obj.projection.forEach(proj => {
+        if (proj.UnnamedExpr) {
+          traverse(proj.UnnamedExpr, node.id);
+        } else if (proj.ExprWithAlias) {
+          traverse(proj.ExprWithAlias.expr, node.id, `AS ${proj.ExprWithAlias.alias.value}`);
+        } else if (proj.Wildcard) {
+          addLeafNode('*', 'expression', node.id);
+        } else {
+          traverse(proj, node.id);
+        }
+      });
+    }
+
+    if (obj.from) {
+      const node = addNode('FROM (Sources)', 'keyword');
+      addEdge(parentId, node.id);
+      obj.from.forEach(f => {
+        traverse(f, node.id);
+      });
+    }
+
+    if (obj.relation) {
+      traverse(obj.relation, parentId);
+      if (obj.joins && obj.joins.length > 0) {
+        obj.joins.forEach(j => {
+          const node = addNode(`JOIN ${j.join_operator?.type || ''}`, 'keyword');
+          addEdge(parentId, node.id);
+          traverse(j.relation, node.id);
+          if (j.join_operator?.On) {
+            traverse(j.join_operator.On, node.id, 'ON');
+          }
+        });
+      }
+      return;
+    }
+
+    if (obj.Table) {
+      const label = obj.Table.name?.map(n => n.value).join('.') + (obj.Table.alias ? ` AS ${obj.Table.alias.name.value}` : '');
+      addLeafNode(label, 'table', parentId);
+      return;
+    }
+
+    if (obj.selection) {
+      const node = addNode('WHERE Filter', 'keyword');
+      addEdge(parentId, node.id);
+      traverse(obj.selection, node.id);
+    }
+
+    if (obj.group_by) {
+      let hasGroup = false;
+      if (Array.isArray(obj.group_by.Expressions) && obj.group_by.Expressions.length > 0) hasGroup = true;
+      if (hasGroup) {
+        const node = addNode('GROUP BY', 'keyword');
+        addEdge(parentId, node.id);
+        obj.group_by.Expressions.forEach(e => traverse(e, node.id));
+      }
+    }
+
+    if (obj.having) {
+      const node = addNode('HAVING Filter', 'keyword');
+      addEdge(parentId, node.id);
+      traverse(obj.having, node.id);
+    }
+
+    // Expressions mapping
+    if (obj.BinaryOp) {
+      const op = obj.BinaryOp.op;
+      const node = addNode(op, 'expression');
+      addEdge(parentId, node.id);
+      traverse(obj.BinaryOp.left, node.id);
+      traverse(obj.BinaryOp.right, node.id);
+      return;
+    }
+
+    if (obj.Identifier) {
+      addLeafNode(obj.Identifier.value, 'expression', parentId);
+      return;
+    }
+
+    if (obj.CompoundIdentifier) {
+      const label = obj.CompoundIdentifier.map(id => id.value).join('.');
+      addLeafNode(label, 'expression', parentId);
+      return;
+    }
+
+    if (obj.Value) {
+      let val = 'NULL';
+      if (obj.Value.Number) val = obj.Value.Number[0];
+      else if (obj.Value.SingleQuotedString) val = `'${obj.Value.SingleQuotedString}'`;
+      else if (obj.Value.DoubleQuotedString) val = `"${obj.Value.DoubleQuotedString}"`;
+      else if (obj.Value.Boolean) val = obj.Value.Boolean ? 'TRUE' : 'FALSE';
+      addLeafNode(val, 'expression', parentId);
+      return;
+    }
+
+    if (obj.Function) {
+      const name = obj.Function.name?.map(n => n.value).join('.');
+      const node = addNode(`${name}()`, 'expression');
+      addEdge(parentId, node.id);
+      if (obj.Function.args) {
+        const args = obj.Function.args.List || [];
+        args.forEach(arg => {
+          if (arg.Unnamed && arg.Unnamed.Expr) traverse(arg.Unnamed.Expr, node.id);
+          else traverse(arg, node.id);
+        });
+      }
+      return;
+    }
+
+    if (obj.Subquery) {
+      const node = addNode('Subquery', 'keyword');
+      addEdge(parentId, node.id);
+      traverse(obj.Subquery.body, node.id);
+      return;
+    }
+
+    // Fallback for general objects
+    let fallbackLabel = '';
+    for (const [key, val] of Object.entries(obj)) {
+      if (val && typeof val !== 'object') {
+        fallbackLabel += `${key}: ${val}\n`;
+      }
+    }
+
+    if (fallbackLabel.trim()) {
+      const node = addNode(fallbackLabel.trim(), 'default');
+      addEdge(parentId, node.id);
+      for (const [key, val] of Object.entries(obj)) {
+        if (val && typeof val === 'object') {
+          traverse(val, node.id, key);
+        }
+      }
+    } else {
+      for (const [key, val] of Object.entries(obj)) {
+        if (val && typeof val === 'object') {
+          traverse(val, parentId, key);
+        }
+      }
+    }
+  }
+
+  function addNode(label, type) {
+    const node = { data: { id: nextId(), label, type } };
+    nodes.push(node);
+    return node.data;
+  }
+
+  function addLeafNode(label, type, parentId) {
+    const node = addNode(label, type);
+    addEdge(parentId, node.id);
+    return node;
+  }
+
+  function addEdge(source, target) {
+    if (source && target) {
+      edges.push({ data: { id: `e_${source}_${target}`, source, target } });
+    }
+  }
+
+  if (Array.isArray(ast)) {
+    ast.forEach((stmt, idx) => {
+      const label = Object.keys(stmt)[0] || 'Statement';
+      const rootNode = addNode(label, 'keyword');
+      traverse(stmt, rootNode.id);
+    });
+  } else {
+    const rootNode = addNode('Root', 'keyword');
+    traverse(ast, rootNode.id);
+  }
+
+  return [...nodes, ...edges];
 }
 
 function jsonTreeHTML(value, depth) {

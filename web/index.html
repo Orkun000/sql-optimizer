@@ -15,6 +15,8 @@
 
   <!-- Monaco Editor loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <!-- Cytoscape.js for interactive Query Plan / AST graphs -->
+  <script src="cytoscape.min.js"></script>
 
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -196,10 +198,17 @@
           </div>
           <div id="ast-output" class="ast-output" hidden>
             <div class="format-toolbar">
-              <button id="expand-all-ast" class="btn btn-xs btn-ghost">▶ Tümünü Aç</button>
+              <div class="btn-group" role="group" aria-label="AST Görünüm Seçenekleri" style="display: flex; gap: 2px;">
+                <button id="ast-view-json" type="button" class="btn btn-xs btn-ghost active"><span id="ast-json-btn-text">📄 JSON Görünümü</span></button>
+                <button id="ast-view-graph" type="button" class="btn btn-xs btn-ghost"><span id="ast-graph-btn-text">🌳 Grafik Görünümü</span></button>
+              </div>
+              <button id="expand-all-ast" class="btn btn-xs btn-ghost" style="margin-left: auto;">▶ Tümünü Aç</button>
               <button id="collapse-all-ast" class="btn btn-xs btn-ghost">▼ Tümünü Kapat</button>
             </div>
             <div id="ast-tree" class="ast-tree" role="tree"></div>
+            <div id="ast-graph-container" class="ast-graph-container" style="display: none;">
+              <div id="ast-graph" style="width:100%; height:100%;"></div>
+            </div>
           </div>
         </div>
 
