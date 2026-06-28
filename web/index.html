@@ -74,6 +74,13 @@
         </select>
       </div>
 
+      <!-- About Button -->
+      <div class="control-group">
+        <button id="about-btn" class="btn btn-ghost btn-xs" aria-label="Proje Hakkında" title="Proje Hakkında" style="padding: 6px 10px; font-size: 13px;">
+          <span class="btn-icon">ℹ️</span> <span id="about-btn-text">Bilgi</span>
+        </button>
+      </div>
+
       <!-- Language selector -->
       <div class="control-group">
         <label for="lang-select" class="control-label" id="lang-label">Dil / Language</label>
@@ -273,8 +280,24 @@
           <pre id="error-message" class="error-message"></pre>
         </div>
       </div>
+      </div>
     </section>
   </main>
+
+  <!-- About Modal -->
+  <dialog id="about-modal" class="modal" aria-labelledby="about-modal-title">
+    <div class="modal-content">
+      <button class="modal-close" id="close-about-btn" aria-label="Kapat">&times;</button>
+      <h2 id="about-modal-title">SQL Optimizer Playground</h2>
+      <p id="about-desc-1">Bu proje tarayıcınızda tamamen yerel olarak çalışan, gizlilik odaklı bir SQL linter ve optimizer'dır.</p>
+      <p id="about-desc-2">Rust ve WebAssembly (WASM) kullanılarak yüksek performanslı SQL ayrıştırma, analiz ve formatlama işlemleri gerçekleştirilir. Girdiğiniz hiçbir sorgu sunucuya veya dışarıya gönderilmez.</p>
+      <div class="about-features">
+        <div class="about-feature" id="about-feat-lint"><strong>🐛 Linting:</strong> Hatalı veya yavaş çalışan SQL kalıplarını tespit eder.</div>
+        <div class="about-feature" id="about-feat-format"><strong>✨ Format:</strong> Okunması zor SQL sorgularını standart bir düzene sokar.</div>
+        <div class="about-feature" id="about-feat-ast"><strong>🌳 AST:</strong> Sorgunun Soyut Sözdizimi Ağacını (Abstract Syntax Tree) çıkarır.</div>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Main application script (MVVM entry point) -->
   <script type="module" src="js/main.js"></script>

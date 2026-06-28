@@ -262,6 +262,12 @@ export const UI_TRANSLATIONS = {
     "flag-limit": "LIMIT",
     "flag-yes": "Var ✓",
     "flag-no": "Yok ✗",
+    "about-btn": "Bilgi",
+    "about-desc-1": "Bu proje tarayıcınızda tamamen yerel olarak çalışan, gizlilik odaklı bir SQL linter ve optimizer'dır.",
+    "about-desc-2": "Rust ve WebAssembly (WASM) kullanılarak yüksek performanslı SQL ayrıştırma, analiz ve formatlama işlemleri gerçekleştirilir. Girdiğiniz hiçbir sorgu sunucuya veya dışarıya gönderilmez.",
+    "about-feat-lint": "<strong>🐛 Linting:</strong> Hatalı veya yavaş çalışan SQL kalıplarını tespit eder.",
+    "about-feat-format": "<strong>✨ Format:</strong> Okunması zor SQL sorgularını standart bir düzene sokar.",
+    "about-feat-ast": "<strong>🌳 AST:</strong> Sorgunun Soyut Sözdizimi Ağacını (Abstract Syntax Tree) çıkarır.",
   },
   en: {
     "brand-tag": "Playground",
@@ -306,6 +312,12 @@ export const UI_TRANSLATIONS = {
     "flag-limit": "LIMIT",
     "flag-yes": "Yes ✓",
     "flag-no": "No ✗",
+    "about-btn": "Info",
+    "about-desc-1": "This project is a privacy-focused SQL linter and optimizer running entirely locally in your browser.",
+    "about-desc-2": "It uses Rust and WebAssembly (WASM) for high-performance SQL parsing, analysis, and formatting. No query you enter is sent to a server or externally.",
+    "about-feat-lint": "<strong>🐛 Linting:</strong> Detects faulty or slow-running SQL patterns.",
+    "about-feat-format": "<strong>✨ Format:</strong> Standardizes hard-to-read SQL queries.",
+    "about-feat-ast": "<strong>🌳 AST:</strong> Extracts the Abstract Syntax Tree of the query.",
   }
 };
 

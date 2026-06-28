@@ -86,5 +86,13 @@ export class UILangManager {
         updateText('label-flag-groupby', 'flag-groupby');
         updateText('label-flag-orderby', 'flag-orderby');
         updateText('label-flag-limit', 'flag-limit');
+
+        // About Modal
+        updateText('about-btn-text', 'about-btn');
+        updateText('about-desc-1', 'about-desc-1');
+        updateText('about-desc-2', 'about-desc-2');
+        updateHtml('about-feat-lint', 'about-feat-lint');
+        updateHtml('about-feat-format', 'about-feat-format');
+        updateHtml('about-feat-ast', 'about-feat-ast');
     }
 }

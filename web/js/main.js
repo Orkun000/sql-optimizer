@@ -164,6 +164,19 @@ function bindEvents() {
 
     // Resize handle (drag to split panes)
     initResizeHandle();
+
+    // About modal
+    const aboutBtn = document.getElementById('about-btn');
+    const aboutModal = document.getElementById('about-modal');
+    const closeAboutBtn = document.getElementById('close-about-btn');
+
+    if (aboutBtn && aboutModal && closeAboutBtn) {
+        aboutBtn.addEventListener('click', () => aboutModal.showModal());
+        closeAboutBtn.addEventListener('click', () => aboutModal.close());
+        aboutModal.addEventListener('click', (e) => {
+            if (e.target === aboutModal) aboutModal.close();
+        });
+    }
 }
 
 // ─── Analysis ───────────────────────────────────────────────────────────────
