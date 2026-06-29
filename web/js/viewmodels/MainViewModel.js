@@ -71,7 +71,7 @@ export class MainViewModel {
         }
     }
 
-    runAnalysis(dialect, schema) {
+    runAnalysis(dialect = 'generic', schema = '') {
         if (!this.state.get('wasmReady')) return;
         
         const sql = this.editorView ? this.editorView.getValue().trim() : '';

@@ -12,6 +12,7 @@ function escHtml(str) {
 
 // --- Lint Panel ---
 export function renderLint(issues, currentLang) {
+  issues = issues || [];
   const container = document.getElementById('lint-results');
   const empty     = document.getElementById('lint-empty');
   const badge     = document.getElementById('lint-badge');
@@ -377,6 +378,8 @@ function buildGraphData(ast) {
 
 // --- Stats Panel ---
 export function renderStats(stats, issues, currentLang) {
+  stats = stats || {};
+  issues = issues || [];
   const empty  = document.getElementById('stats-empty');
   const output = document.getElementById('stats-output');
   empty.hidden  = true;
