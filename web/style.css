@@ -1283,3 +1283,30 @@ code {
 .about-feature strong {
   color: var(--text-primary);
 }
+
+.about-contact {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.about-contact span {
+  font-size: 14px;
+}
+
+.contact-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--dur) var(--ease), text-shadow var(--dur) var(--ease);
+}
+
+.contact-link:hover {
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--primary-glow);
+}

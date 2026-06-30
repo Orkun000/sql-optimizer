@@ -268,6 +268,9 @@ export const UI_TRANSLATIONS = {
     "about-feat-lint": "<strong>🐛 Linting:</strong> Hatalı veya yavaş çalışan SQL kalıplarını tespit eder.",
     "about-feat-format": "<strong>✨ Format:</strong> Okunması zor SQL sorgularını standart bir düzene sokar.",
     "about-feat-ast": "<strong>🌳 AST:</strong> Sorgunun Soyut Sözdizimi Ağacını (Abstract Syntax Tree) çıkarır.",
+    "contact-btn": "İletişim",
+    "contact-modal-header": "İletişim",
+    "contact-modal-desc": "Bana e-posta yoluyla ulaşabilirsiniz:",
   },
   en: {
     "brand-tag": "Playground",
@@ -318,6 +321,9 @@ export const UI_TRANSLATIONS = {
     "about-feat-lint": "<strong>🐛 Linting:</strong> Detects faulty or slow-running SQL patterns.",
     "about-feat-format": "<strong>✨ Format:</strong> Standardizes hard-to-read SQL queries.",
     "about-feat-ast": "<strong>🌳 AST:</strong> Extracts the Abstract Syntax Tree of the query.",
+    "contact-btn": "Contact",
+    "contact-modal-header": "Contact",
+    "contact-modal-desc": "You can reach me via email:",
   }
 };
 

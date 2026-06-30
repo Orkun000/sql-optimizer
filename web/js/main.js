@@ -174,6 +174,19 @@ function bindEvents() {
             if (e.target === aboutModal) aboutModal.close();
         });
     }
+
+    // Contact modal
+    const contactBtn = document.getElementById('contact-btn');
+    const contactModal = document.getElementById('contact-modal');
+    const closeContactBtn = document.getElementById('close-contact-btn');
+
+    if (contactBtn && contactModal && closeContactBtn) {
+        contactBtn.addEventListener('click', () => contactModal.showModal());
+        closeContactBtn.addEventListener('click', () => contactModal.close());
+        contactModal.addEventListener('click', (e) => {
+            if (e.target === contactModal) contactModal.close();
+        });
+    }
 }
 
 // ─── Analysis ───────────────────────────────────────────────────────────────

@@ -94,5 +94,9 @@ export class UILangManager {
         updateHtml('about-feat-lint', 'about-feat-lint');
         updateHtml('about-feat-format', 'about-feat-format');
         updateHtml('about-feat-ast', 'about-feat-ast');
+        // Contact Modal
+        updateText('contact-btn-text', 'contact-btn');
+        updateText('contact-modal-header', 'contact-modal-header');
+        updateText('contact-modal-desc', 'contact-modal-desc');
     }
 }

@@ -81,6 +81,13 @@
         </button>
       </div>
 
+      <!-- Contact Button -->
+      <div class="control-group">
+        <button id="contact-btn" class="btn btn-ghost btn-xs" aria-label="İletişim" title="İletişim" style="padding: 6px 10px; font-size: 13px;">
+          <span class="btn-icon">✉️</span> <span id="contact-btn-text">İletişim</span>
+        </button>
+      </div>
+
       <!-- Language selector -->
       <div class="control-group">
         <label for="lang-select" class="control-label" id="lang-label">Dil / Language</label>
@@ -295,6 +302,20 @@
         <div class="about-feature" id="about-feat-lint"><strong>🐛 Linting:</strong> Hatalı veya yavaş çalışan SQL kalıplarını tespit eder.</div>
         <div class="about-feature" id="about-feat-format"><strong>✨ Format:</strong> Okunması zor SQL sorgularını standart bir düzene sokar.</div>
         <div class="about-feature" id="about-feat-ast"><strong>🌳 AST:</strong> Sorgunun Soyut Sözdizimi Ağacını (Abstract Syntax Tree) çıkarır.</div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Contact Modal -->
+  <dialog id="contact-modal" class="modal" aria-labelledby="contact-modal-title">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+      <button class="modal-close" id="close-contact-btn" aria-label="Kapat">&times;</button>
+      <h2 id="contact-modal-title" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span>✉️</span> <span id="contact-modal-header">İletişim</span>
+      </h2>
+      <p id="contact-modal-desc" style="margin-bottom: 20px; font-size: 14px;">Bana e-posta yoluyla ulaşabilirsiniz:</p>
+      <div style="background: var(--bg-elevated); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); display: inline-block; width: 100%;">
+        <a href="mailto:orkunuyanik0@gmail.com" class="contact-link" style="font-size: 16px; font-weight: 600; letter-spacing: 0.5px;">orkunuyanik0@gmail.com</a>
       </div>
     </div>
   </dialog>
