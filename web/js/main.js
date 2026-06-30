@@ -68,9 +68,6 @@ function onStateChange(state) {
     renderFormat(result.formatted_sql, state.currentLang);
     renderAST(result.ast_json, state.astViewMode);
     renderStats(result.stats, result.lint_issues, state.currentLang);
-
-    // Switch to lint tab to show results
-    switchTab('lint');
 }
 
 // ─── Event Binding ──────────────────────────────────────────────────────────
@@ -192,6 +189,7 @@ function runAnalysis() {
     const dialect = document.getElementById('dialect-select')?.value ?? 'generic';
     const schema = document.getElementById('schema-input')?.value.trim() ?? '';
     viewModel.runAnalysis(dialect, schema);
+    switchTab('lint');
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
