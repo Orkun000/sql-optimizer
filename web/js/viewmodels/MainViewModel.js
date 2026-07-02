@@ -66,8 +66,6 @@ export class MainViewModel {
         if (lastResult) {
             // Re-trigger render by resetting the result
             this.state.set('lastResult', { ...lastResult });
-        } else if (this.editorView && this.editorView.getValue().trim()) {
-            this.runAnalysis();
         }
     }
 
@@ -101,5 +99,6 @@ export class MainViewModel {
             this.editorView.setValue('');
             this.editorView.focus();
         }
+        this.state.set('lastResult', null);
     }
 }
